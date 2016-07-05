@@ -1,7 +1,3 @@
-import org.omg.CORBA.NameValuePair;
-import sun.net.www.http.HttpClient;
-
-import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -12,7 +8,6 @@ import static java.lang.System.out;
 
 public class Main {
 
-    private static final int DEFAULT_BUFFER_SIZE = 256;
     private final String USER_AGENT = "Mozilla/5.0";
 
     /*
@@ -47,39 +42,42 @@ public class Main {
 
     }
 
-    private String readFile(String pathname) throws IOException {
-
-        File file = new File(pathname);
-        StringBuilder fileContents = new StringBuilder((int)file.length());
-        Scanner scanner = new Scanner(file);
-        String lineSeparator = System.getProperty("line.separator");
-
-        try {
-            while(scanner.hasNextLine()) {
-                fileContents.append(scanner.nextLine() + lineSeparator);
-            }
-            return fileContents.toString();
-        } finally {
-            scanner.close();
-        }
-    }
     // HTTP POST request
     private void sendPost() throws Exception {
 
-        String path = "C:\\Users\\Carlos\\Documents\\proveyourworthfiles\\bmw_for_life.txt";
-        String Valores = readFile(path);
+        ReadInfo readInfo = new ReadInfo().invoke();
+        Map<String, Object> params = readInfo.getParams();
+        URL url = readInfo.getUrl();
 
-        // url formatting
-        URL url = new URL("http://www.proveyourworth.net/level3/reaper");
-        Map<String,Object> params = new LinkedHashMap<>();
-        params.put("name", "Carlos Abreu");
-        params.put("email", "carlosabreu1981@gmail.com");
-        params.put("image", "bmw_for_life.jpg");
-        params.put("resume", "https://db.tt/008aveEV");
-        params.put("GitRepo", "https://db.tt/008aveEV");
-        params.put("aboutme", "i'm a passionate developer who loves challenges and enjoy programming for mobiles i have the hope to one day make an impact in the life of everyone, regards.");
-        params.put("code", Valores);
+        StringBuilder postData = getStringBuilder(params);
+        ConnectionHelper connectionHelper = new ConnectionHelper(url, postData).invoke();
+        HttpURLConnection conn = connectionHelper.getConn();
+        BufferedReader in = connectionHelper.getIn();
 
+        ParseResponseHelper(url, postData, conn, in);
+
+
+    }
+
+    private void ParseResponseHelper(URL url, StringBuilder postData, HttpURLConnection conn, BufferedReader in) throws IOException {
+        int responseCode = conn.getResponseCode();
+        System.out.println("\nSending 'POST' request to URL : " + url);
+        System.out.println("Post parameters : " + postData);
+        System.out.println("Response Code : " + responseCode);
+
+        String inputLine;
+        StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        in.close();
+
+        //print result
+        System.out.println(response.toString());
+    }
+
+    private StringBuilder getStringBuilder(Map<String, Object> params) throws UnsupportedEncodingException {
         // putting the string together
         StringBuilder postData = new StringBuilder();
         for (Map.Entry<String,Object> param : params.entrySet()) {
@@ -88,96 +86,104 @@ public class Main {
             postData.append('=');
             postData.append(URLEncoder.encode(String.valueOf(param.getValue()), "UTF-8"));
         }
-
-        //get the bytes to send from the formed string
-        byte[] postDataBytes = postData.toString().getBytes("UTF-8");
-
-        //connection object
-        HttpURLConnection conn = (HttpURLConnection)url.openConnection();
-
-        //request method
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("User-Agent", USER_AGENT);
-        //type of content to being send
-        conn.setRequestProperty("Content-Type", "image/jpeg");
-
-        //the lenght of the message
-        conn.setRequestProperty("Content-Length", String.valueOf(postDataBytes.length));
-
-        //ok marked to send the data
-        conn.setDoOutput(true);
-
-        //make the magic
-        conn.getOutputStream().write(postDataBytes);
-
-        //get the response back
-        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
-
-        //print the response to the console so you know what happened
-        for (int c; (c = in.read()) >= 0;)
-            out.print((char)c);
-
-        int responseCode = conn.getResponseCode();
-        System.out.println("\nSending 'POST' request to URL : " + url);
-        System.out.println("Post parameters : " + postData);
-        System.out.println("Response Code : " + responseCode);
-
-        // BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
-
-        String inputLine;
-        StringBuffer response = new StringBuffer();
-
-        while ((inputLine = in.readLine()) != null) {
-            response.append(inputLine);
-        }
-        in.close();
-
-        //print result
-        System.out.println(response.toString());
-
-
+        return postData;
     }
 
-    private void sendPostApache() throws Exception
-    {
+    private class ReadInfo {
+        private URL url;
+        private Map<String, Object> params;
 
-        String url = "http://www.proveyourworth.net/level3/reaper";
-        URL obj = new URL(url);
-        HttpsURLConnection con = (HttpsURLConnection) obj.openConnection();
-
-        //add reuqest header
-        con.setRequestMethod("POST");
-        con.setRequestProperty("User-Agent", USER_AGENT);
-        con.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
-
-        String urlParameters = "sn=C02G8416DRJM&cn=&locale=&caller=&num=12345";
-
-        // Send post request
-        con.setDoOutput(true);
-        DataOutputStream wr = new DataOutputStream(con.getOutputStream());
-        wr.writeBytes(urlParameters);
-        wr.flush();
-        wr.close();
-
-        int responseCode = con.getResponseCode();
-        System.out.println("\nSending 'POST' request to URL : " + url);
-        System.out.println("Post parameters : " + urlParameters);
-        System.out.println("Response Code : " + responseCode);
-
-        BufferedReader in = new BufferedReader(
-                new InputStreamReader(con.getInputStream()));
-        String inputLine;
-        StringBuffer response = new StringBuffer();
-
-        while ((inputLine = in.readLine()) != null) {
-            response.append(inputLine);
+        public URL getUrl() {
+            return url;
         }
-        in.close();
 
-        //print result
-        System.out.println(response.toString());
+        public Map<String, Object> getParams() {
+            return params;
+        }
 
+        public ReadInfo invoke() throws IOException {
+            String path = "C:\\Users\\Carlos\\Documents\\proveyourworthfiles\\bmw_for_life.txt";
+            String values = readFile(path);
+
+            // url formatting
+            url = new URL("http://www.proveyourworth.net/level3/reaper");
+            params = new LinkedHashMap<>();
+            params.put("name", "Carlos Abreu");
+            params.put("email", "carlosabreu1981@gmail.com");
+            params.put("image", "bmw_for_life.jpg");
+            params.put("resume", "https://db.tt/008aveEV");
+            params.put("GitRepo", "https://github.com/cabreu1981/PYW");
+            params.put("aboutme", "i'm a passionate developer who loves challenges and enjoy programming for mobiles i have the hope to one day make an impact in the life of everyone, regards.");
+            params.put("code", values);
+            return this;
+        }
+
+        private String readFile(String pathname) throws IOException {
+
+            File file = new File(pathname);
+            StringBuilder fileContents = new StringBuilder((int)file.length());
+            Scanner scanner = new Scanner(file);
+            String lineSeparator = System.getProperty("line.separator");
+
+            try {
+                while(scanner.hasNextLine()) {
+                    fileContents.append(scanner.nextLine() + lineSeparator);
+                }
+                return fileContents.toString();
+            } finally {
+                scanner.close();
+            }
+        }
     }
 
+    private class ConnectionHelper {
+        private URL url;
+        private StringBuilder postData;
+        private HttpURLConnection conn;
+        private BufferedReader in;
 
+        public ConnectionHelper(URL url, StringBuilder postData) {
+            this.url = url;
+            this.postData = postData;
+        }
+
+        public HttpURLConnection getConn() {
+            return conn;
+        }
+
+        public BufferedReader getIn() {
+            return in;
+        }
+
+        public ConnectionHelper invoke() throws IOException {
+            //get the bytes to send from the formed string
+            byte[] postDataBytes = postData.toString().getBytes("UTF-8");
+
+            //connection object
+            conn = (HttpURLConnection) url.openConnection();
+
+            //request method
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("User-Agent", USER_AGENT);
+            //type of content to being send
+            conn.setRequestProperty("Content-Type", "image/jpeg");
+
+            //the lenght of the message
+            conn.setRequestProperty("Content-Length", String.valueOf(postDataBytes.length));
+
+            //ok marked to send the data
+            conn.setDoOutput(true);
+
+            //make the magic
+            conn.getOutputStream().write(postDataBytes);
+
+            //get the response back
+            in = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+
+            //print the response to the console so you know what happened
+            for (int c; (c = in.read()) >= 0;)
+                out.print((char)c);
+            return this;
+        }
+    }
 }
